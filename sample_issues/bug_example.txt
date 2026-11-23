@@ -1,0 +1,27 @@
+App crashes with AttributeError when processing an empty list
+
+**Environment:**
+- Python 3.11.4
+- myapp v2.3.1
+- OS: Ubuntu 22.04
+
+**Steps to reproduce:**
+1. Create an empty Python list: `items = []`
+2. Pass it to the processor: `result = process_items(items)`
+3. Observe the crash
+
+**Error message:**
+```
+Traceback (most recent call last):
+  File "myapp/cli.py", line 18, in run
+    result = process_items(items)
+  File "myapp/processor.py", line 42, in process_items
+    result = item.strip()
+AttributeError: 'NoneType' object has no attribute 'strip'
+```
+
+**Expected behavior:**
+`process_items([])` should return an empty list, not crash.
+
+**Actual behavior:**
+The function raises `AttributeError` when the input list is empty.
