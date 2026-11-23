@@ -68,6 +68,19 @@ class MissingInfoResult(BaseModel):
     )
 
 
+class CodeSearchResult(BaseModel):
+    """Structured output from the code-search agent. (Stage 4)"""
+
+    likely_files: list[str] = Field(
+        default_factory=list,
+        description="Relative file paths in the codebase most likely related to the bug.",
+    )
+    summary: str = Field(
+        default="",
+        description="Short explanation of why these files are relevant and what was found.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Shared graph state
 # ---------------------------------------------------------------------------
