@@ -34,6 +34,18 @@ class Settings:
     # Cap on paths returned by search_code() per query.
     max_search_results: int = 10
 
+    # Patterns and names always skipped by directory listings and code search.
+    ignored_names: tuple[str, ...] = (
+        ".git",
+        ".env",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+    )
+
 
 settings = Settings()
 
