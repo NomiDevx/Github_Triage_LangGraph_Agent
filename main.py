@@ -80,7 +80,7 @@ def build_output(result: dict) -> dict:
         "is_complete": result.get("is_complete"),
         "missing_fields": result.get("missing_fields"),
         "draft_reply": result.get("draft_reply"),
-        # Stage 4 fields (not yet built):
+        # Stage 4: code search results (populated for bugs when code_dir provided).
         "likely_files": result.get("likely_files", []),
         "summary": result.get("summary", ""),
     }
