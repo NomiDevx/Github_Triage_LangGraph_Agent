@@ -1,0 +1,3 @@
+How do I configure the retry timeout?
+
+I've been reading the docs but I can't find where to set the HTTP retry timeout. Is it an environment variable or a config file setting? I'm on v1.4.0.
