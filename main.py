@@ -69,16 +69,18 @@ def build_output(result: dict) -> dict:
     """Extracts the fields we care about from the final graph state.
 
     Keeping this separate makes it easy to extend as more nodes are added.
+    None means the field was not populated (e.g. missing_info skipped for
+    non-bug issues); consumers should treat None and [] as "not applicable".
     """
     return {
         "category": result.get("category"),
         "confidence": result.get("confidence"),
         "reasoning": result.get("reasoning"),
-        # Stage 2 fields (empty until that stage is built):
+        # Stage 2: only populated for bugs; None for other categories.
         "is_complete": result.get("is_complete"),
-        "missing_fields": result.get("missing_fields", []),
-        "draft_reply": result.get("draft_reply", ""),
-        # Stage 4 fields:
+        "missing_fields": result.get("missing_fields"),
+        "draft_reply": result.get("draft_reply"),
+        # Stage 4 fields (not yet built):
         "likely_files": result.get("likely_files", []),
         "summary": result.get("summary", ""),
     }
