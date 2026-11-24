@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "issue_file",
+        nargs="?",
+        default=None,
         type=Path,
         help="Path to a text file: first line = title, remaining lines = body.",
     )
@@ -48,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Local code folder to search when the issue is classified as a bug (Stage 4).",
+    )
+    parser.add_argument(
+        "--stdin-json",
+        action="store_true",
+        help="Read JSON payload from stdin with keys: title, body, and optional code_dir.",
     )
     return parser.parse_args()
 
@@ -89,19 +96,33 @@ def build_output(result: dict) -> dict:
 def main() -> None:
     args = parse_args()
 
-    if not args.issue_file.exists():
-        logger.error("Issue file not found: %s", args.issue_file)
-        sys.exit(1)
+    if args.stdin_json:
+        raw_input = sys.stdin.read().strip()
+        if not raw_input:
+            logger.error("Empty stdin provided with --stdin-json")
+            sys.exit(1)
+        payload = json.loads(raw_input)
+        title = payload.get("title", "").strip()
+        body = payload.get("body", "").strip()
+        code_dir_arg = payload.get("code_dir") or args.code_dir
+    else:
+        if not args.issue_file:
+            logger.error("Please provide an issue_file or use --stdin-json")
+            sys.exit(1)
+        if not args.issue_file.exists():
+            logger.error("Issue file not found: %s", args.issue_file)
+            sys.exit(1)
+        title, body = load_issue(args.issue_file)
+        code_dir_arg = args.code_dir
 
-    title, body = load_issue(args.issue_file)
     logger.info("Loaded issue: '%s'", title)
 
     initial_state: dict = {
         "issue_title": title,
         "issue_body": body,
     }
-    if args.code_dir:
-        initial_state["code_dir"] = str(args.code_dir.resolve())
+    if code_dir_arg:
+        initial_state["code_dir"] = str(Path(code_dir_arg).resolve())
 
     logger.info("Running triage graph...")
     result = triage_graph.invoke(initial_state)

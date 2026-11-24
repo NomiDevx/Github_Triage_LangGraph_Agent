@@ -16,8 +16,27 @@ cp .env.example .env
 # 2. Run on a sample issue
 python main.py sample_issues/bug_example.txt
 
-# 3. Run tests
+# 3. Run the Next.js Web UI
+cd web
+npm run dev
+# open http://localhost:3000 in your browser
+
+# 4. Run tests
 python -m pytest tests/ -v
+```
+
+---
+
+## Next.js Web UI
+
+A modern web dashboard built with Next.js and Tailwind CSS is available in `web/`:
+- **Interactive Triage Workspace**: Type an issue or pick a quick preset, configure code search folder, and view classifications, completeness analysis, and suggested replies.
+- **Evaluation Dashboard**: Run the 10-issue evaluation dataset live and inspect the real-time confusion matrix and per-sample logs.
+
+```bash
+cd web
+npm install
+npm run dev
 ```
 
 ---

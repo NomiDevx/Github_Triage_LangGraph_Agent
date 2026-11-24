@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print detailed model reasoning for each evaluated case.",
     )
+    parser.add_argument(
+        "--json-output",
+        action="store_true",
+        help="Emit full results as JSON to stdout for programmatic and UI integration.",
+    )
     return parser.parse_args()
 
 
@@ -92,7 +97,11 @@ def print_confusion_matrix(
     print("=" * len(header) + "\n")
 
 
-def run_evaluation(dataset: list[dict], verbose: bool = False) -> float:
+def run_evaluation(
+    dataset: list[dict],
+    verbose: bool = False,
+    json_output: bool = False,
+) -> float:
     """Runs each sample through the triage pipeline and computes accuracy metrics."""
     categories = [cat.value for cat in IssueCategory]
     confusion: dict[str, dict[str, int]] = {
@@ -101,12 +110,13 @@ def run_evaluation(dataset: list[dict], verbose: bool = False) -> float:
 
     correct_classifications = 0
     total_samples = len(dataset)
-
     completeness_evals: list[bool] = []
+    sample_records: list[dict] = []
 
-    print(f"\nRunning triage evaluation on {total_samples} samples from dataset...\n")
-    print(f"{'ID':<4} {'Expected':<16} {'Predicted':<16} {'Conf':<6} {'Match':<6} {'Title'}")
-    print("-" * 80)
+    if not json_output:
+        print(f"\nRunning triage evaluation on {total_samples} samples from dataset...\n")
+        print(f"{'ID':<4} {'Expected':<16} {'Predicted':<16} {'Conf':<6} {'Match':<6} {'Title'}")
+        print("-" * 80)
 
     start_time = time.perf_counter()
 
@@ -129,7 +139,6 @@ def run_evaluation(dataset: list[dict], verbose: bool = False) -> float:
             reasoning = result.get("reasoning", "")
             is_complete = result.get("is_complete")
         except Exception as exc:
-            print(f"Error evaluating sample {item_id}: {exc}")
             predicted_cat = "error"
             confidence = 0.0
             reasoning = str(exc)
@@ -142,33 +151,62 @@ def run_evaluation(dataset: list[dict], verbose: bool = False) -> float:
         if expected_cat in confusion and predicted_cat in confusion[expected_cat]:
             confusion[expected_cat][predicted_cat] += 1
 
-        # Evaluate completeness for bug reports when an expectation is provided
         if expected_is_complete is not None and is_complete is not None:
             completeness_evals.append(is_complete == expected_is_complete)
 
-        status_symbol = "PASS" if is_match else "FAIL"
-        short_title = title[:35] + ("..." if len(title) > 35 else "")
-        print(
-            f"{item_id:<4} {expected_cat:<16} {predicted_cat:<16} {confidence:<6.2f} "
-            f"{status_symbol:<6} {short_title}"
-        )
+        sample_records.append({
+            "id": item_id,
+            "title": title,
+            "expected_category": expected_cat,
+            "predicted_category": predicted_cat,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "is_complete": is_complete,
+            "expected_is_complete": expected_is_complete,
+            "match": is_match,
+        })
 
-        if verbose:
-            print(f"     Reasoning: {reasoning}")
-            if result.get("missing_fields"):
-                print(f"     Missing: {result['missing_fields']}")
-            if result.get("draft_reply"):
-                print(f"     Reply: {result['draft_reply']}")
-            print()
+        if not json_output:
+            status_symbol = "PASS" if is_match else "FAIL"
+            short_title = title[:35] + ("..." if len(title) > 35 else "")
+            print(
+                f"{item_id:<4} {expected_cat:<16} {predicted_cat:<16} {confidence:<6.2f} "
+                f"{status_symbol:<6} {short_title}"
+            )
+
+            if verbose:
+                print(f"     Reasoning: {reasoning}")
+                if result.get("missing_fields"):
+                    print(f"     Missing: {result['missing_fields']}")
+                if result.get("draft_reply"):
+                    print(f"     Reply: {result['draft_reply']}")
+                print()
 
     total_time = time.perf_counter() - start_time
     accuracy = (correct_classifications / total_samples) * 100 if total_samples > 0 else 0.0
+
+    if json_output:
+        payload = {
+            "total_samples": total_samples,
+            "correct_classifications": correct_classifications,
+            "accuracy": round(accuracy, 1),
+            "total_time_seconds": round(total_time, 2),
+            "categories": categories,
+            "confusion_matrix": confusion,
+            "samples": sample_records,
+            "completeness_accuracy": (
+                round((sum(completeness_evals) / len(completeness_evals)) * 100, 1)
+                if completeness_evals
+                else None
+            ),
+        }
+        print(json.dumps(payload))
+        return accuracy
 
     print("-" * 80)
     print(f"\nCompleted {total_samples} samples in {total_time:.2f}s ({total_time / total_samples:.2f}s/sample)")
     print(f"Overall Classification Accuracy: {correct_classifications}/{total_samples} ({accuracy:.1f}%)")
 
-    # Print breakdown per category
     print("\nPer-Category Breakdown:")
     for cat in categories:
         total_for_cat = sum(confusion[cat].values())
@@ -176,22 +214,23 @@ def run_evaluation(dataset: list[dict], verbose: bool = False) -> float:
         cat_acc = (correct_for_cat / total_for_cat * 100) if total_for_cat > 0 else 0.0
         print(f"  - {cat:<16}: {correct_for_cat}/{total_for_cat} ({cat_acc:.1f}%)")
 
-    # Completeness check accuracy
     if completeness_evals:
         comp_acc = (sum(completeness_evals) / len(completeness_evals)) * 100
         print(f"\nBug Completeness Check Accuracy: {sum(completeness_evals)}/{len(completeness_evals)} ({comp_acc:.1f}%)")
 
-    # Print 2D confusion matrix
     print_confusion_matrix(categories, confusion)
-
     return accuracy
 
 
 def main() -> None:
     args = parse_args()
     dataset = load_dataset(args.dataset)
-    accuracy = run_evaluation(dataset, verbose=args.verbose)
-    if accuracy < 80.0:
+    accuracy = run_evaluation(
+        dataset,
+        verbose=args.verbose,
+        json_output=args.json_output,
+    )
+    if not args.json_output and accuracy < 80.0:
         print(f"Warning: Accuracy ({accuracy:.1f}%) is below 80% baseline threshold.")
         sys.exit(1)
 
